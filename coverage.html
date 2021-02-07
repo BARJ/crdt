@@ -1,0 +1,255 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>crdt_v2: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">/home/jabb/repos/goodnotes/crdt_v2/clock.go (100.0%)</option>
+				
+				<option value="file1">/home/jabb/repos/goodnotes/crdt_v2/lww_element_dict.go (100.0%)</option>
+				
+				<option value="file2">/home/jabb/repos/goodnotes/crdt_v2/timed_value.go (85.7%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package crdt
+
+type Clock interface {
+        Now() int64
+}
+
+var _ Clock = (*FakeClock)(nil)
+
+type FakeClock struct {
+        time int64
+}
+
+func NewFakeClock() *FakeClock <span class="cov8" title="1">{
+        return &amp;FakeClock{}
+}</span>
+
+func (c *FakeClock) SetTime(time int64) <span class="cov8" title="1">{
+        c.time = time
+}</span>
+
+func (c *FakeClock) Now() int64 <span class="cov8" title="1">{
+        return c.time
+}</span>
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package crdt
+
+type LWWElementDict struct {
+        id      int
+        clock   Clock
+        adds    map[string]TimedValue
+        removes map[string]TimedValue
+}
+
+func NewLWWElementDict(id int, clock Clock) LWWElementDict <span class="cov8" title="1">{
+        return LWWElementDict{
+                id:      id,
+                clock:   clock,
+                adds:    map[string]TimedValue{},
+                removes: map[string]TimedValue{},
+        }
+}</span>
+
+// Add-or-updates a key-value pair, and generates a new timestamp.
+// Timestamps are assumed unique, totally ordered, consistent with casaul order, and monotonically increasing.
+func (l LWWElementDict) Add(key string, value interface{}) <span class="cov8" title="1">{
+        timedValue := NewTimedValue(value, l.clock.Now())
+        if add, ok := l.adds[key]; ok &amp;&amp; add.Compare(timedValue) &gt;= 0 </span><span class="cov8" title="1">{ // consistent with causal order
+                return
+        }</span>
+        <span class="cov8" title="1">l.adds[key] = timedValue</span>
+}
+
+// Removes an existing key-value pair, and generates a new timestamp.
+// Timestamps are assumed unique, totally ordered, consistent with casaul order, and monotonically increasing.
+func (l LWWElementDict) Remove(key string) <span class="cov8" title="1">{
+        if !l.Lookup(key) </span><span class="cov8" title="1">{ // an element can only be removed if it is present
+                return
+        }</span>
+        <span class="cov8" title="1">timedValue := NewTimedValue(nil, l.clock.Now())
+        if remove, ok := l.removes[key]; ok &amp;&amp; remove.Compare(timedValue) &gt;= 0 </span><span class="cov8" title="1">{ // consistent with causal order
+                return
+        }</span>
+        <span class="cov8" title="1">l.removes[key] = timedValue</span>
+}
+
+// Lookup key-value pair by its key.
+// The lookup is biased towards addition.
+func (l LWWElementDict) Lookup(key string) bool <span class="cov8" title="1">{
+        add, ok := l.adds[key]
+        if !ok </span><span class="cov8" title="1">{
+                return false
+        }</span>
+        <span class="cov8" title="1">remove, ok := l.removes[key]
+        if ok &amp;&amp; remove.Compare(add) &gt; 0 </span><span class="cov8" title="1">{ // biased towards addition
+                return false
+        }</span>
+        <span class="cov8" title="1">return true</span>
+}
+
+// Returns the current value:
+// A collection of key-value pairs without their underlying add-and-remove timestamps.
+func (l LWWElementDict) Values() map[string]interface{} <span class="cov8" title="1">{
+        values := map[string]interface{}{}
+        for key, _ := range l.adds </span><span class="cov8" title="1">{
+                if l.Lookup(key) </span><span class="cov8" title="1">{
+                        values[key] = l.adds[key].value
+                }</span>
+        }
+        <span class="cov8" title="1">return values</span>
+}
+
+// Merge commutes the values with the highest timestamp.
+// On concurrrent add-or-update, the node with the lowest identifier (address) takes precedence.
+// Therefore, concurrent add-or-update operations are deterministic.
+// Merge is commutative, associative, and idempotent.
+func (l LWWElementDict) Merge(other LWWElementDict) LWWElementDict <span class="cov8" title="1">{
+        dominant := l.id &gt;= other.id
+        result := NewLWWElementDict(l.id, l.clock)
+        result.adds = merge(l.adds, other.adds, dominant)
+        result.removes = merge(l.removes, other.removes, dominant)
+        return result
+}</span>
+
+func merge(source map[string]TimedValue, replica map[string]TimedValue, dominant bool) map[string]TimedValue <span class="cov8" title="1">{
+        result := map[string]TimedValue{}
+        for key, value := range source </span><span class="cov8" title="1">{
+                result[key] = value
+        }</span>
+        <span class="cov8" title="1">for key, replicaValue := range replica </span><span class="cov8" title="1">{
+                sourceValue, ok := source[key]
+                if !ok </span>{<span class="cov8" title="1">
+                }</span> else<span class="cov8" title="1"> if sourceValue.Compare(replicaValue) &gt; 0 ||
+                        (sourceValue.Compare(replicaValue) == 0 &amp;&amp; !dominant) </span><span class="cov8" title="1">{
+                        continue</span>
+                }
+                <span class="cov8" title="1">result[key] = replicaValue</span>
+        }
+        <span class="cov8" title="1">return result</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package crdt
+
+import "fmt"
+
+type TimedValue struct {
+        value     interface{}
+        timestamp int64
+}
+
+func NewTimedValue(value interface{}, timestamp int64) TimedValue <span class="cov8" title="1">{
+        return TimedValue{value: value, timestamp: timestamp}
+}</span>
+
+func (v TimedValue) Compare(other TimedValue) int <span class="cov8" title="1">{
+        if v.timestamp == other.timestamp </span><span class="cov8" title="1">{
+                return 0
+        }</span>
+        <span class="cov8" title="1">if v.timestamp &lt; other.timestamp </span><span class="cov8" title="1">{
+                return -1
+        }</span>
+        <span class="cov8" title="1">return +1</span>
+}
+
+func (v TimedValue) String() string <span class="cov0" title="0">{
+        return fmt.Sprintf("{value=%v, timestamp=%d}", v.value, v.timestamp)
+}</span>
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
